@@ -1,5 +1,6 @@
+import math
 import numpy as np
-from helpers import minmax
+from helpers import minmax, create_gapped_array
 from enum import Enum
 from sklearn.linear_model import LinearRegression
 
@@ -20,15 +21,26 @@ class RMI:
         print("RMI 시작")
         while self.nodeSize > self.leafNodeSize:
             self.stageIdx.append(self.stageIdx[-1]+1)
-            self.interval = len(self.data)//self.gain**(self.stageIdx[-1])
-            for i in range(0, len(self.data)//self.interval):
-                if self.interval*(i+1) < len(self.data):
-                    childNode = LearnedIndexNode(reg, self.stageIdx[-1], self.data[self.interval*i:self.interval*(i+1)], idx=i)
-                else:
-                    childNode = LearnedIndexNode(reg, self.stageIdx[-1], self.data[self.interval*i:], idx=i)
-                self.nodeList.append(childNode)
+            # internal node
+            if self.nodeSize // self.gain > self.leafNodeSize:
+                self.interval = len(self.data)//self.gain**(self.stageIdx[-1])
+                for i in range(0, len(self.data)//self.interval):
+                    if self.interval*(i+1) < len(self.data):
+                        childNode = LearnedIndexNode(reg, self.stageIdx[-1], self.data[self.interval*i:self.interval*(i+1)], idx=i)
+                    else:
+                        childNode = LearnedIndexNode(reg, self.stageIdx[-1], self.data[self.interval*i:], idx=i)
+                    self.nodeList.append(childNode)
+            # data node (GAP create)
+            else:
+                self.interval = math.ceil(self.leafNodeSize*(0.6))
+                for i in range(0, len(self.data) // self.interval):
+                    if self.interval * (i + 1) < len(self.data):
+                        childNode = DataNode(reg, self.stageIdx[-1],
+                                                self.data[self.interval * i:self.interval * (i + 1)], idx=i)
+                    else:
+                        childNode = DataNode(reg, self.stageIdx[-1], self.data[self.interval * i:], idx=i)
+                    self.nodeList.append(childNode)
             self.nodeSize //= self.gain
-        print("RMI STAGE = " + str(self.stageIdx[-1]))
 
     def find(self, key):
         """
@@ -57,9 +69,9 @@ class RMI:
                 break
 
         error = 0
-        while self.node.index[pos] != key:
+        while self.node.index[pos] == np.nan | self.node.index[pos] != key:
             error += 1
-            # Escape if you overextend in key.
+            # exponential search
             pos += 1 if self.node.index[pos] < key else -1
 
             if pos < self.node.labels[0]:
@@ -68,7 +80,7 @@ class RMI:
                 print(f"이전 노드의 범위는 {self.node.labels[0]}부터 {self.node.labels[-1]}입니다.")
             elif pos > self.node.labels[-1]:
                 print(f"pos:{pos}, node.labels[-1]:{node.labels[-1]} 이므로 다음 노드로 이동합니다.")
-                self.node = self.nodeList[self.nodeList.index(self.node)+1]
+                self.node = self.nodeList[self.nodeList.index(self.node)+1]ㅊ
                 print(f"다음 노드의 범위는 {self.node.labels[0]}부터 {self.node.labels[-1]}입니다.")
 
             if (pos < 0 or pos > (len(self.root.index)-1)):
@@ -104,6 +116,31 @@ class LearnedIndexNode:
         if self.reg == Regression.LINEAR:
             X = self.keys.reshape(-1, 1)
             Y = self.labels.reshape(-1, 1)
+            self.model = LinearRegression()
+            print(self.index)
+            self.model.fit(X, Y)
+
+class DataNode:
+    def __init__(self, reg, stage, data, idx):
+        self.reg = reg
+        self.stage = stage
+        self.data = create_gapped_array(data)
+        self.idx = idx
+        self.model = None
+        self.index = None
+        self.labels = np.where(~np.isnan(self.data) | np.isnan(self.data))[0] + len(self.data)*idx  #Create Labels
+        self.keys = self.data[np.where(~np.isnan(self.data) | np.isnan(self.data))[0]]
+        self.build()
+
+    def build(self):
+        self.index = {}
+        train_labels = np.where(~np.isnan(self.data))[0] + len(self.data)*self.idx
+        train_keys = self.data[np.where(~np.isnan(self.data))[0]]
+        for KEY, POS in zip(self.keys, self.labels):
+            self.index[POS] = KEY
+        if self.reg == Regression.LINEAR:
+            X = train_keys.reshape(-1, 1)
+            Y = train_labels.reshape(-1, 1)
             self.model = LinearRegression()
             print(self.index)
             self.model.fit(X, Y)

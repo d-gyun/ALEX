@@ -6,7 +6,7 @@ from helpers import hist_plot
 
 
 def main():
-    data = DataGen(Distribution.RANDOM, 10000).generate()
+    data = DataGen(Distribution.RANDOM, 1000).generate()
     idx = RMI(Regression.LINEAR, data)  # Create a learned index for the samples created
     # res, err = idx.find(10)  # Find the position of the key using the index
     error_board = idx.find_all()
