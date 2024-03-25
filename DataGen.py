@@ -4,8 +4,9 @@ from enum import Enum
 
 class Distribution(Enum):
     LINEAR = 0
-    NORMAL = 1
-    RANDOM = 2
+    LOGNORMAL = 1
+    NORMAL = 2
+    RANDOM = 3
 
 
 class DataGen:
@@ -17,8 +18,10 @@ class DataGen:
     def generate(self):
         if self.distribution == Distribution.LINEAR:
             self.data = self.linear_data()
-        elif self.distribution == Distribution.NORMAL:
+        elif self.distribution == Distribution.LOGNORMAL:
             self.data = self.log_normal()
+        elif self.distribution == Distribution.NORMAL:
+            self.data = self.normal()
         elif self.distribution == Distribution.RANDOM:
             self.data = self.rand_data()
         else:
@@ -58,21 +61,37 @@ class DataGen:
         """
         data = []
         for i in range(self.size):
-            sample = 10. + np.random.standard_normal(100)
+            mu, sigma = 0, 0.1
+            sample = np.random.lognormal(mean=mu, sigma=sigma, size=100)
             data.append(np.prod(sample))
         data = np.array(data) / np.min(data)
         return np.rint(data)
 
+    def normal(self):
+        mean_val = self.size*50  # 평균값
+        std_dev = self.size*20  # 표준편차
+
+        # 원하는 범위 설정
+        lower_limit = 0
+        upper_limit = mean_val*2
+
+        # 정규 분포를 따르는 난수 생성 및 범위 제한
+        random_data = []
+        while len(random_data) < self.size:
+            value = np.rint(np.random.normal(mean_val, std_dev)).astype(int)
+            if lower_limit <= value <= upper_limit:
+                random_data.append(value)
+
+        data = np.array(random_data)
+        return data
+
     def rand_data(self):
         """
             Generates an array of randomly distributed values.
-
-            Returns:
-            numpy.ndarray: An array of random samples.
         """
         data = []
         for i in range(self.size):
-            sample = np.random.randint(10000)
+            sample = np.random.randint(self.size*10)
             data.append(sample)
         data = np.array(data)
         return data
