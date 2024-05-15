@@ -10,10 +10,11 @@ class Distribution(Enum):
 
 
 class DataGen:
-    def __init__(self, distribution, size):
+    def __init__(self, distribution, size, range_size):
         self.data = None
         self.distribution = distribution
         self.size = size
+        self.range_size = range_size
 
     def generate(self):
         if self.distribution == Distribution.LINEAR:
@@ -30,17 +31,6 @@ class DataGen:
         return self.data
 
     def linear_data(self):
-        """
-        Generates linear data and labels.
-
-        Parameters:
-        amount (int): The number of data points to generate.
-        a (float): The slope of the linear relationship.
-        b (float): The y-intercept of the linear relationship.
-
-        Returns:
-        numpy.ndarray, numpy.ndarray: Arrays containing generated data and labels.
-        """
         a = np.random.randint(10)
         b = np.random.randint(10)
         print(f"Creating linear data according to the {a}x+{b} line.")
@@ -50,15 +40,6 @@ class DataGen:
         return data
 
     def log_normal(self):
-        """
-           Generates an array of log-normal distributed values and scales them.
-
-           Parameters:
-           amount (int): The number of log-normal samples to generate.
-
-           Returns:
-           numpy.ndarray: An array of log-normal samples, scaled by the minimum value.
-        """
         data = []
         for i in range(self.size):
             mu, sigma = 0, 0.1
@@ -91,7 +72,7 @@ class DataGen:
         """
         data = []
         for i in range(self.size):
-            sample = np.random.randint(self.size*10)
+            sample = np.random.randint(self.range_size)
             data.append(sample)
         data = np.array(data)
         return data

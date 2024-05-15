@@ -28,16 +28,6 @@ class RMI:
             print("RMI STAGE = " + str(self.stageIdx[-1]))
 
     def find(self, key):
-        """
-           Search for a key in an indexed data structure using a predictive model.
-
-           Parameters:
-               key: The value to search for in the data structure.
-
-           Returns:
-               (position, error): A tuple containing the position of the key in the data structure and the number of checks performed.
-               If the key is not found after max_checks, the function returns (-1, -1).
-        """
         upper_bound = np.float64(len(self.root.index) - 1)
         lower_bound = 0.0
         pos = minmax(lower_bound, upper_bound, np.rint(self.nodeList[0].model.predict([[key]])[0][0]))
@@ -48,7 +38,6 @@ class RMI:
         for node in self.nodeList[1:]:
             if node.stage == idx and pos in node.labels:
                 pos = minmax(lower_bound, upper_bound, np.rint(node.model.predict([[key]])[0][0]))
-                # print(f"Model in stage{idx} predicted that the requested key is in position {pos}")
                 idx += 1
             if idx > self.stageIdx[-1]:
                 self.node = node
@@ -75,13 +64,9 @@ class RMI:
             pos += 1 if self.node.index[pos] < key else -1
 
             if pos < self.node.labels[0]:
-                # print(f"pos:{pos}, node.labels[0]:{node.labels[0]} 이므로 이전 노드로 이동합니다.")
                 self.node = self.nodeList[self.nodeList.index(self.node)-1]
-                # print(f"이전 노드의 범위는 {self.node.labels[0]}부터 {self.node.labels[-1]}입니다.")
             elif pos > self.node.labels[-1]:
-                # print(f"pos:{pos}, node.labels[-1]:{node.labels[-1]} 이므로 다음 노드로 이동합니다.")
                 self.node = self.nodeList[self.nodeList.index(self.node)+1]
-                # print(f"다음 노드의 범위는 {self.node.labels[0]}부터 {self.node.labels[-1]}입니다.")
 
             if (pos < 0 or pos > (len(self.root.index)-1)):
                 print(f"After making {error + 1} checks I figured that the key doesn't exist!")
@@ -89,10 +74,10 @@ class RMI:
         print(f"Found {key} in position {pos} after making {error + 1} checks")
         return pos, error
 
-    def find_all(self):
+    def find_all(self, data):
         stats = np.zeros(100)
-        for i in range(len(self.data)):
-            pos, err = self.find(self.data[i])
+        for i in range(len(data)):
+            pos, err = self.find(data[i])
             if pos == -1:
                 stats[-1] += 1
             stats[err] += 1
