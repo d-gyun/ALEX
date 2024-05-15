@@ -4,15 +4,42 @@ from helpers import minmax
 from sklearn.linear_model import LinearRegression
 
 leafNodeList = []
+
+def get_cdf_based_splits(data, threshold=50):
+    # CDF 계산
+    cdf = np.arange(1, len(data) + 1) / len(data)
+
+    # 1차 도함수 (기울기) 계산
+    cdf_gradients = np.gradient(cdf, data)
+
+    # 기울기 변화율 계산 (1차 도함수의 절대값)
+    gradient_changes = np.abs(cdf_gradients)
+
+    # 기울기 변화율이 특정 임계값 이상인 지점 찾기
+    change_points = np.where(gradient_changes > threshold)[0]
+
+    # 인접한 change_points 병합
+    merged_change_points = []
+    if len(change_points) > 0:
+        prev_cp = change_points[0]
+        merged_change_points.append(prev_cp)
+        for cp in change_points[1:]:
+            if cp - prev_cp > 1:
+                merged_change_points.append(cp)
+            prev_cp = cp
+
+    split_points = [0] + list(merged_change_points) + [len(data)]
+    return split_points
+
 class RMI:
     def __init__(self, data):
-        self.max_children = 8  # Maximum number of children per node
         self.leafNodeSize = 100  # Maximum size of leaf node
         self.data = np.sort(data)
         self.root = LearnedIndexNode(self.data, 0, 0, False, None)  # Initialize root node
-        self.root.split(self.max_children, self.leafNodeSize)
         self.dataNode = None
         self.split_cnt = 0
+
+        self.root.split_cdf_based(self.leafNodeSize)
 
         # for i in range(len(leafNodeList)):
         #     print(len(leafNodeList[i].data))
@@ -155,9 +182,6 @@ class RMI:
     def leafNodeCnt(self):
         return len(leafNodeList)
 
-    def density(self):
-        return len(self.data)/(self.leafNodeSize * len(leafNodeList))
-
 class LearnedIndexNode:
     def __init__(self, data, offset, depth, is_leaf, parent):
         self.data = data
@@ -174,24 +198,25 @@ class LearnedIndexNode:
             y = np.arange(len(self.data))
             self.model.fit(X, y)
 
-    def split(self, max_children, leafNodeSize):
+    def split_cdf_based(self, leafNodeSize):
         if len(self.data) <= math.ceil(leafNodeSize * (0.8)):
             self.is_leaf = True
             self.train_model()  # 리프 노드에서 바로 모델을 학습
             leafNodeList.append(self)
             return
 
-        num_children = min(max_children, math.ceil(len(self.data) / math.ceil(leafNodeSize * (0.8))))
+        split_points = get_cdf_based_splits(self.data)
+        num_children = len(split_points) - 1
+
         if num_children <= 1:
             self.is_leaf = True
             self.train_model()  # 데이터 양이 적을 때 모델 학습
             leafNodeList.append(self)
             return
 
-        split_size = len(self.data) // num_children
         for i in range(num_children):
-            start = i * split_size
-            end = (i + 1) * split_size if i < num_children - 1 else len(self.data)
+            start = split_points[i]
+            end = split_points[i + 1]
             child_data = self.data[start:end]
             if len(child_data) > 0:
                 child = LearnedIndexNode(child_data, self.offset + start, self.depth + 1, False, self)
@@ -202,7 +227,7 @@ class LearnedIndexNode:
             self.train_model()
 
         for child in self.children:
-            child.split(max_children, leafNodeSize)
+            child.split_cdf_based(leafNodeSize)
 
     def split_side(self):
         split_size = len(self.data) // 2

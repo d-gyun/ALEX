@@ -2,10 +2,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def main():
+    #rand 데이터 생성
+    # data = []
+    # for i in range(1000):
+    #     sample = np.random.randint(10000)
+    #     data.append(sample)
+    # data = np.array(data)
+
     # 임의의 데이터 생성 (로그 정규분포)
     data = np.random.lognormal(mean=0, sigma=1, size=1000)
-    data = np.sort(data)
 
+    data = np.sort(data)
     # CDF 계산
     cdf = np.arange(1, len(data) + 1) / len(data)
 
@@ -32,7 +39,7 @@ def main():
     plt.show()
 
     # 기울기 변화율이 특정 임계값 이상인 지점 찾기
-    threshold = 100  # 변화율 임계값 설정
+    threshold = 50  # 변화율 임계값 설정
     change_points = np.where(gradient_changes > threshold)[0]
 
     # 인접한 change_points 병합
