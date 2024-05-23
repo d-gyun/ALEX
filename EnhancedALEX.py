@@ -5,7 +5,7 @@ from sklearn.linear_model import LinearRegression
 
 nodeList = {}
 leafNodeList = []
-def get_cdf_based_splits(data, threshold=50):
+def get_cdf_based_splits(data, threshold=10):
     # CDF 계산
     cdf = np.arange(1, len(data) + 1) / len(data)
 
@@ -13,7 +13,7 @@ def get_cdf_based_splits(data, threshold=50):
     cdf_gradients = np.gradient(cdf, data)
 
     # 기울기 변화율 계산 (1차 도함수의 절대값)
-    gradient_changes = np.abs(cdf_gradients)
+    gradient_changes = np.abs(np.diff(cdf_gradients))
 
     # 기울기 변화율이 특정 임계값 이상인 지점 찾기
     change_points = np.where(gradient_changes > threshold)[0]
@@ -32,7 +32,6 @@ def get_cdf_based_splits(data, threshold=50):
     return split_points
 class RMI:
     def __init__(self, data):
-        self.fanout = 8  # node의 fanout
         self.leafNodeSize = 100
         self.data = np.sort(data)
         self.dataNode = None
@@ -41,19 +40,9 @@ class RMI:
         self.root = LearnedIndexNode(0, self.data,0, False)
         nodeList[0] = [self.root]
 
-        self.build_tree()
+        self.root.split_cdf_based(self.leafNodeSize)
 
-    def build_tree(self):
-        current_stage = 0
-        while current_stage in nodeList:
-            next_stage_nodes = []
-            for node in nodeList[current_stage]:
-                if not node.is_leaf:
-                    next_stage_nodes.extend(node.split_cdf_based(self.leafNodeSize))
-            if next_stage_nodes:
-                nodeList[current_stage + 1] = next_stage_nodes
-            current_stage += 1
-        self.stageIdx = sorted(nodeList.keys())
+        print(nodeList)
 
     def find(self, key):
         def search_node(node, key):
@@ -80,24 +69,23 @@ class RMI:
     def exponential_search(self, dataNode, pos, key, error):
         l, r = 0, 0  # binary search를 위한 range
         i = 0
-        n = len(dataNode.data)
-
+        # exponential search
         if dataNode.data[pos] < key:
             while dataNode.data[pos] < key:
                 error += 1
                 l = int(pos + 1)
                 pos += 2 ** i
                 r = int(pos)
-                if dataNode == leafNodeList[-1] and pos >= n:
-                    pos = n - 1
-                    r = pos
-                if pos >= n:
+                if dataNode == leafNodeList[-1] and pos > len(dataNode.data) - 1:
+                    pos = len(dataNode.data) - 1
+                    r = int(pos)
+                if pos > len(dataNode.data) - 1:
                     if dataNode.data[-1] == key:
                         print(f"Found {key} in position {dataNode.offset + pos} after making {error + 1} checks")
                         return dataNode.offset + pos, error
                     elif dataNode.data[-1] > key:
-                        r = n
-                        pos = n - 1
+                        r = len(dataNode.data)
+                        pos = len(dataNode.data) - 1
                         break
                     else:
                         dataNode = leafNodeList[leafNodeList.index(dataNode) + 1]
@@ -108,7 +96,7 @@ class RMI:
                     return dataNode.offset + pos, error
                 i += 1
 
-            for chk in range(l, min(r + 1, n)):
+            for chk in range(l, r + 1):
                 error += 1
                 if dataNode.data[chk] == key:
                     pos = chk
@@ -122,7 +110,7 @@ class RMI:
                 l = int(pos)
                 if dataNode == leafNodeList[0] and pos < 0:
                     pos = 0
-                    l = 1
+                    l = int(pos) + 1
                 if pos < 0:
                     if dataNode.data[0] == key:
                         print(f"Found {key} in position {dataNode.offset + pos} after making {error + 1} checks")
@@ -140,18 +128,17 @@ class RMI:
                     return dataNode.offset + pos, error
                 i += 1
 
-            for chk in range(l, min(r + 1, n)):
+            for chk in range(l, r + 1):
                 error += 1
                 if dataNode.data[chk] == key:
                     pos = chk
                     print(f"Found {key} in position {dataNode.offset + pos} after making {error + 1} checks")
                     return dataNode.offset + pos, error
-
         print(f"After making {error + 1} checks I figured that the key {key} doesn't exist!")
         return -1, -1
 
     def find_all(self, data):
-        stats = np.zeros(100)
+        stats = np.zeros(300)
         for i in range(len(data)):
             pos, err = self.find(data[i])
             if pos == -1:
@@ -220,6 +207,7 @@ class LearnedIndexNode:
         self.data = data
         self.offset = offset
         self.is_leaf = is_leaf
+        self.max_children = 8
         self.model = LinearRegression()
 
     def train_model(self):
@@ -233,30 +221,49 @@ class LearnedIndexNode:
             self.is_leaf = True
             self.train_model()  # 리프 노드에서 바로 모델을 학습
             leafNodeList.append(self)
-            return []
+            return
 
         split_points = get_cdf_based_splits(self.data)
         num_children = len(split_points) - 1
 
         if num_children <= 1:
-            self.is_leaf = True
-            self.train_model()  # 데이터 양이 적을 때 모델 학습
-            leafNodeList.append(self)
-            return []
+            if len(self.data) > leafNodeSize:
+                num_children = min(self.max_children, math.ceil(len(self.data) / math.ceil(leafNodeSize * (0.8))))
+                if num_children <= 1:
+                    self.is_leaf = True
+                    self.train_model()  # 데이터 양이 적을 때 모델 학습
+                    leafNodeList.append(self)
+                    return
 
-        children = []
-        for i in range(num_children):
-            start = split_points[i]
-            end = split_points[i + 1]
-            child_data = self.data[start:end]
-            if len(child_data) > 0:
-                if self.stage + 1 not in nodeList:
-                    nodeList[self.stage + 1] = []
-                child = LearnedIndexNode(self.stage + 1, child_data, self.offset + start, False)
-                nodeList[self.stage + 1].append(child)
-                children.append(child)
+                split_size = len(self.data) // num_children
+                for i in range(num_children):
+                    start = i * split_size
+                    end = (i + 1) * split_size if i < num_children - 1 else len(self.data)
+                    child_data = self.data[start:end]
+                    if len(child_data) > 0:
+                        if self.stage + 1 not in nodeList:
+                            nodeList[self.stage + 1] = []
+                        child = LearnedIndexNode(self.stage + 1, child_data, self.offset + start, False)
+                        nodeList[self.stage + 1].append(child)
+            else:
+                self.is_leaf = True
+                self.train_model()  # 데이터 양이 적을 때 모델 학습
+                leafNodeList.append(self)
+                return
+        else:
+            for i in range(num_children):
+                start = split_points[i]
+                end = split_points[i + 1]
+                child_data = self.data[start:end]
+                if len(child_data) > 0:
+                    if self.stage + 1 not in nodeList:
+                        nodeList[self.stage + 1] = []
+                    child = LearnedIndexNode(self.stage + 1, child_data, self.offset + start, False)
+                    nodeList[self.stage + 1].append(child)
 
         if not self.is_leaf:
             self.train_model()
 
-        return children
+        if self.stage + 1 in nodeList:
+            for node in nodeList[self.stage + 1]:
+                node.split_cdf_based(leafNodeSize)
