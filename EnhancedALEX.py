@@ -149,7 +149,7 @@ class RMI:
         return -1, -1
 
     def find_all(self, data):
-        stats = np.zeros(100)
+        stats = np.zeros(300)
         for i in range(len(data)):
             pos, err = self.find(data[i])
             if pos == -1:
