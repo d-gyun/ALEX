@@ -5,12 +5,23 @@ from sklearn.linear_model import LinearRegression
 
 nodeList = {}
 leafNodeList = []
-def get_cdf_based_splits(data, threshold=10):
+
+
+def get_cdf_based_splits(data, threshold=30):
+    if len(data) == 0:
+        return [0, len(data)]
+
     # CDF 계산
     cdf = np.arange(1, len(data) + 1) / len(data)
 
+    # 데이터 내에서 동일한 값을 제거하여 분할할 수 있도록 함
+    unique_data, unique_indices = np.unique(data, return_index=True)
+
+    if len(unique_data) < 2:
+        return [0, len(data)]
+
     # 1차 도함수 (기울기) 계산
-    cdf_gradients = np.gradient(cdf, data)
+    cdf_gradients = np.gradient(cdf[unique_indices], unique_data)
 
     # 기울기 변화율 계산 (1차 도함수의 절대값)
     gradient_changes = np.abs(np.diff(cdf_gradients))
@@ -30,6 +41,7 @@ def get_cdf_based_splits(data, threshold=10):
 
     split_points = [0] + list(merged_change_points) + [len(data)]
     return split_points
+
 class RMI:
     def __init__(self, data):
         self.leafNodeSize = 100
@@ -39,10 +51,18 @@ class RMI:
 
         self.root = LearnedIndexNode(0, self.data,0, False)
         nodeList[0] = [self.root]
+        self.build_tree()
 
-        self.root.split_cdf_based(self.leafNodeSize)
-
-        print(nodeList)
+    def build_tree(self):
+        current_stage = 0
+        while current_stage in nodeList:
+            next_stage_nodes = []
+            for node in nodeList[current_stage]:
+                if not node.is_leaf:
+                    next_stage_nodes.extend(node.split_cdf_based(self.leafNodeSize))
+            if next_stage_nodes:
+                nodeList[current_stage + 1] = next_stage_nodes
+            current_stage += 1
 
     def find(self, key):
         def search_node(node, key):
@@ -60,7 +80,7 @@ class RMI:
                     return self.exponential_search(node, local_pred_pos, key, error)
             else:
                 pred_index = minmax(0, len(node.data) - 1, int(node.model.predict([[key]])[0]))
-                for next_node in nodeList[node.stage + 1]:
+                for next_node in nodeList.get(node.stage + 1, []):
                     if next_node.offset <= pred_index + node.offset < (next_node.offset + len(next_node.data)):
                         return search_node(next_node, key)
 
@@ -76,10 +96,10 @@ class RMI:
                 l = int(pos + 1)
                 pos += 2 ** i
                 r = int(pos)
-                if dataNode == leafNodeList[-1] and pos > len(dataNode.data) - 1:
+                if dataNode == leafNodeList[-1] and pos >= len(dataNode.data):
                     pos = len(dataNode.data) - 1
                     r = int(pos)
-                if pos > len(dataNode.data) - 1:
+                if pos >= len(dataNode.data):
                     if dataNode.data[-1] == key:
                         print(f"Found {key} in position {dataNode.offset + pos} after making {error + 1} checks")
                         return dataNode.offset + pos, error
@@ -96,7 +116,7 @@ class RMI:
                     return dataNode.offset + pos, error
                 i += 1
 
-            for chk in range(l, r + 1):
+            for chk in range(l, min(r + 1, len(dataNode.data))):
                 error += 1
                 if dataNode.data[chk] == key:
                     pos = chk
@@ -128,7 +148,7 @@ class RMI:
                     return dataNode.offset + pos, error
                 i += 1
 
-            for chk in range(l, r + 1):
+            for chk in range(l, min(r + 1, len(dataNode.data))):
                 error += 1
                 if dataNode.data[chk] == key:
                     pos = chk
@@ -147,26 +167,6 @@ class RMI:
                 stats[err] += 1
         return stats
 
-    def split(self, split_node):
-        stage = split_node.stage
-        split_size = len(split_node.data) // 2
-        left_data = split_node.data[:split_size]
-        right_data = split_node.data[split_size:]
-
-        left_node = LearnedIndexNode(stage, left_data, split_node.offset, True)
-        right_node = LearnedIndexNode(stage, right_data, split_node.offset + split_size, True)
-
-        left_node.train_model()
-        right_node.train_model()
-
-        nodeList[stage].remove(split_node)
-        nodeList[stage].append(left_node)
-        nodeList[stage].append(right_node)
-
-        leafNodeList.remove(split_node)
-        leafNodeList.append(left_node)
-        leafNodeList.append(right_node)
-
     def insert(self, data):
         self.model_predict(data)
 
@@ -181,6 +181,28 @@ class RMI:
             self.split_cnt += 1
             self.split(self.dataNode)
 
+    def split(self, split_node):
+        stage = split_node.stage
+        split_size = len(split_node.data) // 2
+        left_data = split_node.data[:split_size]
+        right_data = split_node.data[split_size:]
+
+        left_node = LearnedIndexNode(stage, left_data, split_node.offset, True)
+        right_node = LearnedIndexNode(stage, right_data, split_node.offset + split_size, True)
+
+        left_node.train_model()
+        right_node.train_model()
+
+        node_pos = nodeList[stage].index(split_node)
+        nodeList[stage].remove(split_node)
+        nodeList[stage].insert(node_pos, left_node)
+        nodeList[stage].insert(node_pos+1, right_node)
+
+        node_pos = leafNodeList.index(split_node)
+        leafNodeList.remove(split_node)
+        leafNodeList.insert(node_pos, left_node)
+        leafNodeList.insert(node_pos+1, right_node)
+
     def bulk_load(self, data):
         insert_data = np.sort(data)
         for data in insert_data:
@@ -192,7 +214,7 @@ class RMI:
                 self.dataNode = node
             else:
                 pred_index = minmax(0, len(node.data) - 1, int(node.model.predict([[key]])[0]))
-                for next_node in nodeList[node.stage + 1]:
+                for next_node in nodeList.get(node.stage + 1, []):
                     if next_node.offset <= pred_index + node.offset < (next_node.offset + len(next_node.data)):
                         return search_node(next_node, key)
 
@@ -219,51 +241,39 @@ class LearnedIndexNode:
     def split_cdf_based(self, leafNodeSize):
         if len(self.data) <= math.ceil(leafNodeSize * (0.8)):
             self.is_leaf = True
-            self.train_model()  # 리프 노드에서 바로 모델을 학습
+            self.train_model()
             leafNodeList.append(self)
-            return
-
+            return []
         split_points = get_cdf_based_splits(self.data)
         num_children = len(split_points) - 1
-
+        children = []
         if num_children <= 1:
             if len(self.data) > leafNodeSize:
                 num_children = min(self.max_children, math.ceil(len(self.data) / math.ceil(leafNodeSize * (0.8))))
                 if num_children <= 1:
                     self.is_leaf = True
-                    self.train_model()  # 데이터 양이 적을 때 모델 학습
+                    self.train_model()
                     leafNodeList.append(self)
-                    return
-
+                    return []
                 split_size = len(self.data) // num_children
                 for i in range(num_children):
                     start = i * split_size
                     end = (i + 1) * split_size if i < num_children - 1 else len(self.data)
                     child_data = self.data[start:end]
-                    if len(child_data) > 0:
-                        if self.stage + 1 not in nodeList:
-                            nodeList[self.stage + 1] = []
-                        child = LearnedIndexNode(self.stage + 1, child_data, self.offset + start, False)
-                        nodeList[self.stage + 1].append(child)
+                    child = LearnedIndexNode(self.stage + 1, child_data, self.offset + start, False)
+                    children.append(child)
             else:
                 self.is_leaf = True
-                self.train_model()  # 데이터 양이 적을 때 모델 학습
+                self.train_model()
                 leafNodeList.append(self)
-                return
+                return []
         else:
             for i in range(num_children):
                 start = split_points[i]
                 end = split_points[i + 1]
                 child_data = self.data[start:end]
-                if len(child_data) > 0:
-                    if self.stage + 1 not in nodeList:
-                        nodeList[self.stage + 1] = []
-                    child = LearnedIndexNode(self.stage + 1, child_data, self.offset + start, False)
-                    nodeList[self.stage + 1].append(child)
-
+                child = LearnedIndexNode(self.stage + 1, child_data, self.offset + start, False)
+                children.append(child)
         if not self.is_leaf:
             self.train_model()
-
-        if self.stage + 1 in nodeList:
-            for node in nodeList[self.stage + 1]:
-                node.split_cdf_based(leafNodeSize)
+        return children

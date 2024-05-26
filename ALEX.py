@@ -5,12 +5,22 @@ from sklearn.linear_model import LinearRegression
 
 leafNodeList = []
 
-def get_cdf_based_splits(data, threshold=10):
+
+def get_cdf_based_splits(data, threshold=30):
+    if len(data) == 0:
+        return [0, len(data)]
+
     # CDF 계산
     cdf = np.arange(1, len(data) + 1) / len(data)
 
+    # 데이터 내에서 동일한 값을 제거하여 분할할 수 있도록 함
+    unique_data, unique_indices = np.unique(data, return_index=True)
+
+    if len(unique_data) < 2:
+        return [0, len(data)]
+
     # 1차 도함수 (기울기) 계산
-    cdf_gradients = np.gradient(cdf, data)
+    cdf_gradients = np.gradient(cdf[unique_indices], unique_data)
 
     # 기울기 변화율 계산 (1차 도함수의 절대값)
     gradient_changes = np.abs(np.diff(cdf_gradients))
@@ -73,10 +83,10 @@ class RMI:
                 l = int(pos + 1)
                 pos += 2 ** i
                 r = int(pos)
-                if dataNode == leafNodeList[-1] and pos > len(dataNode.data)-1:
+                if dataNode == leafNodeList[-1] and pos >= len(dataNode.data):
                     pos = len(dataNode.data)-1
                     r = int(pos)
-                if pos > len(dataNode.data)-1:
+                if pos >= len(dataNode.data):
                     if dataNode.data[-1] == key:
                         print(f"Found {key} in position {dataNode.offset + pos} after making {error + 1} checks")
                         return dataNode.offset + pos, error
@@ -93,7 +103,7 @@ class RMI:
                     return dataNode.offset + pos, error
                 i += 1
 
-            for chk in range(l, r+1):
+            for chk in range(l, min(r + 1, len(dataNode.data))):
                 error += 1
                 if dataNode.data[chk] == key:
                     pos = chk
@@ -125,7 +135,7 @@ class RMI:
                     return dataNode.offset + pos, error
                 i += 1
 
-            for chk in range(l, r+1):
+            for chk in range(l, min(r + 1, len(dataNode.data))):
                 error += 1
                 if dataNode.data[chk] == key:
                     pos = chk
@@ -138,7 +148,7 @@ class RMI:
         stats = np.zeros(300)
         for i in range(len(data)):
             pos, errors = self.find(data[i])
-            if pos is None:
+            if pos == -1:
                 stats[-1] += 1
             else:
                 stats[errors] += 1
