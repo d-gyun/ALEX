@@ -5,8 +5,7 @@ from sklearn.linear_model import LinearRegression
 
 leafNodeList = []
 
-
-def get_cdf_based_splits(data, threshold=30):
+def get_cdf_based_splits(data, threshold=0.1):
     if len(data) == 0:
         return [0, len(data)]
 
@@ -267,6 +266,7 @@ class LearnedIndexNode:
         leafNodeList.insert(node_pos+1, right)
 
         if self.parent is not None:
+            node_pos = self.parent.children.index(self)
             self.parent.children.remove(self)
-            self.parent.children.append(left)
-            self.parent.children.append(right)
+            self.parent.children.insert(node_pos, left)
+            self.parent.children.insert(node_pos+1, right)

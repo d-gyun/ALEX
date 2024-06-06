@@ -1,16 +1,9 @@
 import numpy as np
+from DataGen import DataGen, Distribution
 import matplotlib.pyplot as plt
 
 def main():
-    #rand 데이터 생성
-    # data = []
-    # for i in range(1000):
-    #     sample = np.random.randint(10000)
-    #     data.append(sample)
-    # data = np.array(data)
-
-    # 임의의 데이터 생성 (로그 정규분포)
-    data = np.random.lognormal(mean=0, sigma=1, size=1000)
+    data = DataGen(Distribution.LONGITUDES, 10000, 100000).generate()
 
     data = np.sort(data)
     # CDF 계산
@@ -24,8 +17,14 @@ def main():
     plt.legend()
     plt.show()
 
+    # 데이터 내에서 동일한 값을 제거하여 분할할 수 있도록 함
+    unique_data, unique_indices = np.unique(data, return_index=True)
+
+    if len(unique_data) < 2:
+        return [0, len(data)]
+
     # 1차 도함수 (기울기) 계산
-    cdf_gradients = np.gradient(cdf, data)
+    cdf_gradients = np.gradient(cdf[unique_indices], unique_data)
 
     # 기울기 변화율 계산 (1차 도함수의 절대값)
     gradient_changes = np.abs(cdf_gradients)
@@ -50,8 +49,6 @@ def main():
         if cp - prev_cp > 1:
             merged_change_points.append(cp)
         prev_cp = cp
-
-    print("Change Points:", merged_change_points)
 
     # 분할 지점 포함하기
     split_points = [0] + list(merged_change_points) + [len(data)]

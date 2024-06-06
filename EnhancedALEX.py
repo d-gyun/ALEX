@@ -7,7 +7,7 @@ nodeList = {}
 leafNodeList = []
 
 
-def get_cdf_based_splits(data, threshold=30):
+def get_cdf_based_splits(data, threshold=0.1):
     if len(data) == 0:
         return [0, len(data)]
 
@@ -79,9 +79,9 @@ class RMI:
                 else:
                     return self.exponential_search(node, local_pred_pos, key, error)
             else:
-                pred_index = minmax(0, len(node.data) - 1, int(node.model.predict([[key]])[0]))
+                pred_index = minmax(0, len(self.root.data) - 1, node.offset + int(node.model.predict([[key]])[0]))
                 for next_node in nodeList.get(node.stage + 1, []):
-                    if next_node.offset <= pred_index + node.offset < (next_node.offset + len(next_node.data)):
+                    if next_node.offset <= pred_index < (next_node.offset + len(next_node.data)):
                         return search_node(next_node, key)
 
         return search_node(self.root, key)
@@ -179,29 +179,7 @@ class RMI:
 
         if len(self.dataNode.data) > math.ceil(self.leafNodeSize * (0.8)):
             self.split_cnt += 1
-            self.split(self.dataNode)
-
-    def split(self, split_node):
-        stage = split_node.stage
-        split_size = len(split_node.data) // 2
-        left_data = split_node.data[:split_size]
-        right_data = split_node.data[split_size:]
-
-        left_node = LearnedIndexNode(stage, left_data, split_node.offset, True)
-        right_node = LearnedIndexNode(stage, right_data, split_node.offset + split_size, True)
-
-        left_node.train_model()
-        right_node.train_model()
-
-        node_pos = nodeList[stage].index(split_node)
-        nodeList[stage].remove(split_node)
-        nodeList[stage].insert(node_pos, left_node)
-        nodeList[stage].insert(node_pos+1, right_node)
-
-        node_pos = leafNodeList.index(split_node)
-        leafNodeList.remove(split_node)
-        leafNodeList.insert(node_pos, left_node)
-        leafNodeList.insert(node_pos+1, right_node)
+            self.dataNode.split_side()
 
     def bulk_load(self, data):
         insert_data = np.sort(data)
@@ -213,9 +191,9 @@ class RMI:
             if node.is_leaf:
                 self.dataNode = node
             else:
-                pred_index = minmax(0, len(node.data) - 1, int(node.model.predict([[key]])[0]))
+                pred_index = minmax(0, len(self.root.data) - 1, node.offset + int(node.model.predict([[key]])[0]))
                 for next_node in nodeList.get(node.stage + 1, []):
-                    if next_node.offset <= pred_index + node.offset < (next_node.offset + len(next_node.data)):
+                    if next_node.offset <= pred_index < (next_node.offset + len(next_node.data)):
                         return search_node(next_node, key)
 
         return search_node(self.root, key)
@@ -277,3 +255,21 @@ class LearnedIndexNode:
         if not self.is_leaf:
             self.train_model()
         return children
+
+    def split_side(self):
+        stage = self.stage
+        split_size = len(self.data) // 2
+        left_node = LearnedIndexNode(stage, self.data[:split_size], self.offset, True)
+        right_node = LearnedIndexNode(stage, self.data[split_size:], self.offset + split_size, True)
+        left_node.train_model()
+        right_node.train_model()
+
+        node_pos = nodeList[stage].index(self)
+        nodeList[stage].remove(self)
+        nodeList[stage].insert(node_pos, left_node)
+        nodeList[stage].insert(node_pos+1, right_node)
+
+        node_pos = leafNodeList.index(self)
+        leafNodeList.remove(self)
+        leafNodeList.insert(node_pos, left_node)
+        leafNodeList.insert(node_pos+1, right_node)
