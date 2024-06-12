@@ -12,7 +12,7 @@ def main():
     insert_data = DataGen(Distribution.LONGITUDES, 2000, 1000000).generate()
     # LI_idx = LI_RMI(data)
     ALEX_idx = ALEX_RMI(data)
-    enhancedALEX_idx = enhancedALEX_RMI(data, density=ALEX_idx.density())
+    enhancedALEX_idx = enhancedALEX_RMI(data)
 
     # LI_error_board = LI_idx.find_all(data)
     # LI_error_board = LI_error_board.astype(int)
@@ -26,11 +26,11 @@ def main():
     # print(LI_error_board)
     # LearnedIndex_cost = sum(err*(i+1) for i, err in enumerate(LI_error_board))
 
-    print(ALEX_error_board)
+    # print(ALEX_error_board)
     Before_ALEX_cost = sum(err*(i+1) for i, err in enumerate(ALEX_error_board))
     Before_ALEX_leafnode_cnt = ALEX_idx.leafNodeCnt()
 
-    print(enhancedALEX_error_board)
+    # print(enhancedALEX_error_board)
     Before_enhancedALEX_cost = sum(err*(i+1) for i, err in enumerate(enhancedALEX_error_board))
     Before_enhancedALEX_leafnode_cnt = enhancedALEX_idx.leafNodeCnt()
 
@@ -57,8 +57,8 @@ def main():
     After_enhancedALEX_leafnode_cnt = enhancedALEX_idx.leafNodeCnt()
 
     #insert된 data에 대해서도 find 수행
-    ALEX_error_board_inserted = ALEX_idx.find_all(insert_data).astype(int)
-    enhancedALEX_error_board_inserted = enhancedALEX_idx.find_all(insert_data).astype(int)
+    # ALEX_error_board_inserted = ALEX_idx.find_all(insert_data).astype(int)
+    # enhancedALEX_error_board_inserted = enhancedALEX_idx.find_all(insert_data).astype(int)
 
 
     # print("LearnedIndex_cost:", LearnedIndex_cost)
@@ -78,8 +78,8 @@ def main():
     hist_plot(ALEX_error_board, 'ALEX Linear Regression in RANDOM Data')
     hist_plot(enhancedALEX_error_board, 'enhancedALEX Linear Regression in RANDOM Data')
 
-    hist_plot(ALEX_error_board_inserted, 'ALEX Linear Regression in inserted Data')
-    hist_plot(enhancedALEX_error_board_inserted, 'enhancedALEX Linear Regression in inserted Data')
+    # hist_plot(ALEX_error_board_inserted, 'ALEX Linear Regression in inserted Data')
+    # hist_plot(enhancedALEX_error_board_inserted, 'enhancedALEX Linear Regression in inserted Data')
 
 if __name__ == '__main__':
     main()

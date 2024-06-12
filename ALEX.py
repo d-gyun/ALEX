@@ -30,11 +30,13 @@ class RMI:
 
                 # Exponential search around the predicted position
                 else:
+                    # print(f"local_pred_pos is {local_pred_pos}")
                     return self.exponential_search(node, local_pred_pos, key, error)
             else:
                 pred_index = minmax(0, len(node.data) - 1, int(node.model.predict([[key]])[0]))
                 for child in node.children:
                     if child.offset <= pred_index + node.offset < (child.offset + len(child.data)):
+                        # print(f"Next node is in position {next_node.offset} and {next_node.offset + len(next_node.data)}")
                         return search_node(child, key)
 
         return search_node(self.root, key)
