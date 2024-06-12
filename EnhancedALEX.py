@@ -7,11 +7,12 @@ nodeList = {}
 leafNodeList = []
 
 
-def get_cdf_based_splits(data, threshold=0.1):
+# EnhancedALEX.py
+
+def get_cdf_based_splits(data, threshold=10000):
     if len(data) == 0:
         return [0, len(data)]
 
-    # CDF 계산
     cdf = np.arange(1, len(data) + 1) / len(data)
 
     # 데이터 내에서 동일한 값을 제거하여 분할할 수 있도록 함
@@ -20,8 +21,12 @@ def get_cdf_based_splits(data, threshold=0.1):
     if len(unique_data) < 2:
         return [0, len(data)]
 
+    # Check if indices are within bounds
+    max_index = len(cdf) - 1
+    valid_indices = unique_indices[unique_indices <= max_index]
+
     # 1차 도함수 (기울기) 계산
-    cdf_gradients = np.gradient(cdf[unique_indices], unique_data)
+    cdf_gradients = np.gradient(cdf[valid_indices], unique_data[:len(valid_indices)])
 
     # 기울기 변화율 계산 (1차 도함수의 절대값)
     gradient_changes = np.abs(np.diff(cdf_gradients))
@@ -77,12 +82,20 @@ class RMI:
 
                 # Exponential search around the predicted position
                 else:
+                    # print(f"local_pred_pos is {local_pred_pos}")
                     return self.exponential_search(node, local_pred_pos, key, error)
             else:
                 pred_index = minmax(0, len(self.root.data) - 1, node.offset + int(node.model.predict([[key]])[0]))
                 for next_node in nodeList.get(node.stage + 1, []):
                     if next_node.offset <= pred_index < (next_node.offset + len(next_node.data)):
+                        # print(f"Next node is in position {next_node.offset} and {next_node.offset + len(next_node.data)}")
                         return search_node(next_node, key)
+                # next level에 pred_index가 존재하지 않을 경우
+                next_nodes = nodeList.get(node.stage + 1, [])
+                if pred_index < next_nodes[0].offset:
+                    return search_node(next_nodes[0], key)
+                else:
+                    return search_node(next_nodes[-1], key)
 
         return search_node(self.root, key)
 
@@ -158,7 +171,7 @@ class RMI:
         return -1, -1
 
     def find_all(self, data):
-        stats = np.zeros(300)
+        stats = np.zeros(500)
         for i in range(len(data)):
             pos, err = self.find(data[i])
             if pos == -1:
@@ -238,8 +251,9 @@ class LearnedIndexNode:
                     start = i * split_size
                     end = (i + 1) * split_size if i < num_children - 1 else len(self.data)
                     child_data = self.data[start:end]
-                    child = LearnedIndexNode(self.stage + 1, child_data, self.offset + start, False)
-                    children.append(child)
+                    if len(child_data) > 0:
+                        child = LearnedIndexNode(self.stage + 1, child_data, self.offset + start, False)
+                        children.append(child)
             else:
                 self.is_leaf = True
                 self.train_model()
@@ -250,8 +264,9 @@ class LearnedIndexNode:
                 start = split_points[i]
                 end = split_points[i + 1]
                 child_data = self.data[start:end]
-                child = LearnedIndexNode(self.stage + 1, child_data, self.offset + start, False)
-                children.append(child)
+                if len(child_data) > 0:
+                    child = LearnedIndexNode(self.stage + 1, child_data, self.offset + start, False)
+                    children.append(child)
         if not self.is_leaf:
             self.train_model()
         return children

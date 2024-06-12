@@ -5,11 +5,12 @@ from sklearn.linear_model import LinearRegression
 
 leafNodeList = []
 
-def get_cdf_based_splits(data, threshold=0.1):
+# EnhancedALEX.py
+
+def get_cdf_based_splits(data, threshold=10000):
     if len(data) == 0:
         return [0, len(data)]
 
-    # CDF 계산
     cdf = np.arange(1, len(data) + 1) / len(data)
 
     # 데이터 내에서 동일한 값을 제거하여 분할할 수 있도록 함
@@ -18,8 +19,12 @@ def get_cdf_based_splits(data, threshold=0.1):
     if len(unique_data) < 2:
         return [0, len(data)]
 
+    # Check if indices are within bounds
+    max_index = len(cdf) - 1
+    valid_indices = unique_indices[unique_indices <= max_index]
+
     # 1차 도함수 (기울기) 계산
-    cdf_gradients = np.gradient(cdf[unique_indices], unique_data)
+    cdf_gradients = np.gradient(cdf[valid_indices], unique_data[:len(valid_indices)])
 
     # 기울기 변화율 계산 (1차 도함수의 절대값)
     gradient_changes = np.abs(np.diff(cdf_gradients))
@@ -63,11 +68,13 @@ class RMI:
 
                 # Exponential search around the predicted position
                 else:
+                    # print(f"local_pred_pos is {local_pred_pos}")
                     return self.exponential_search(node, local_pred_pos, key, error)
             else:
                 pred_index = minmax(0, len(node.data) - 1, int(node.model.predict([[key]])[0]))
                 for child in node.children:
                     if child.offset <= pred_index + node.offset < (child.offset + len(child.data)):
+                        # print(f"Next node is in position {child.offset} and {child.offset + len(child.data)}")
                         return search_node(child, key)
 
         return search_node(self.root, key)
