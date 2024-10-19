@@ -82,8 +82,16 @@ class DataGen:
         place_name = "Manhattan, New York, USA"
         graph = ox.graph_from_place(place_name, network_type='all')
         nodes, edges = ox.graph_to_gdfs(graph)
-        longlat_data = list(zip(nodes['x'].values, nodes['y'].values))
+
+        # 경도와 위도를 1차원 키로 변환
+        longitudes = nodes['x'].values
+        latitudes = nodes['y'].values
+        longlat_data = 180 * np.floor(longitudes) + latitudes
+
+        # 데이터를 셔플하고 크기를 제한
         np.random.shuffle(longlat_data)
         longlat_data = longlat_data[:self.size]
-        longlat_data.sort()
-        return longlat_data
+
+        return np.sort(longlat_data)
+
+

@@ -13,6 +13,7 @@ class RMI:
         self.root.split(self.max_children, self.leafNodeSize)
         self.dataNode = None
         self.split_cnt = 0
+        self.retrain_cnt = 0
 
         # for i in range(len(leafNodeList)):
         #     print(len(leafNodeList[i].data))
@@ -113,7 +114,7 @@ class RMI:
         return -1, -1
 
     def find_all(self, data):
-        stats = np.zeros(300)
+        stats = np.zeros(200)
         for i in range(len(data)):
             pos, errors = self.find(data[i])
             if pos is None:
@@ -135,7 +136,9 @@ class RMI:
         # print(len(self.dataNode.data))
         if len(self.dataNode.data) > math.ceil(self.leafNodeSize * (0.8)):
             self.split_cnt += 1
+            self.retrain_cnt += 3
             self.dataNode.split_side()
+            self.dataNode.parent.retrain()
 
     def bulk_load(self, data):
         insert_data = np.sort(data)
@@ -176,6 +179,13 @@ class LearnedIndexNode:
             y = np.arange(len(self.data))
             self.model.fit(X, y)
 
+    def retrain(self):
+        if len(self.data) > 0:
+            data = np.concatenate([child.data for child in self.children])
+            X = data.reshape(-1, 1)
+            y = np.arange(len(data))
+            self.model.fit(X, y)
+
     def split(self, max_children, leafNodeSize):
         if len(self.data) <= math.ceil(leafNodeSize * (0.8)):
             self.is_leaf = True
@@ -212,6 +222,10 @@ class LearnedIndexNode:
         right = LearnedIndexNode(self.data[split_size:len(self.data)], self.offset + split_size, self.depth, True, self.parent)
         left.train_model()
         right.train_model()
+
+        # if self.parent is not None:
+        #     self.parent.data = np.array(sorted(list(set(self.parent.data).union(set(self.data)))))
+        #     self.parent.train_model()
 
         node_pos = leafNodeList.index(self)
         leafNodeList.remove(self)

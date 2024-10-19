@@ -2,6 +2,7 @@ import math
 import numpy as np
 from helpers import minmax
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error
 
 nodeList = {}
 leafNodeList = []
@@ -12,6 +13,8 @@ class RMI:
         self.data = np.sort(data)
         self.dataNode = None
         self.split_cnt = 0
+        self.retrain_cnt = 0
+        self.p_index = 0 # 상위 레벨 노드 재학습을 위한 index
 
         self.root = LearnedIndexNode(0, self.data,0, False)
         nodeList[0] = [self.root]
@@ -34,6 +37,16 @@ class RMI:
                 error = 0
                 pred_index = int(node.model.predict([[key]])[0])
                 local_pred_pos = minmax(0, len(node.data) - 1, pred_index)
+                if pred_index < 0 or pred_index > len(node.data) - 1:
+                    prev_nodes = nodeList.get(node.stage - 1)
+                    prev_nodes[self.p_index].ooi_cnt += 1
+                    #상위 레벨 노드 재학습
+                    if prev_nodes[self.p_index].ooi_cnt > len(prev_nodes[self.p_index].data) * 0.1:
+                        # 재학습에 필요한 데이터 셋을 어떻게 구할 것인지 정리 필요
+                        prev_nodes[self.p_index].retrain()
+                        prev_nodes[self.p_index].ooi_cnt = 0
+                        self.retrain_cnt += 1
+
 
                 if node.data[local_pred_pos] == key:
                     print(f"Found {key} in position {node.offset + local_pred_pos} after making {error + 1} checks")
@@ -44,6 +57,7 @@ class RMI:
                     # print(f"local_pred_pos is {local_pred_pos}")
                     return self.exponential_search(node, local_pred_pos, key, error)
             else:
+                self.p_index = nodeList.get(node.stage, []).index(node)
                 pred_index = minmax(0, len(self.root.data) - 1, node.offset + int(node.model.predict([[key]])[0]))
                 for next_node in nodeList.get(node.stage + 1, []):
                     if next_node.offset <= pred_index < (next_node.offset + len(next_node.data)):
@@ -130,7 +144,7 @@ class RMI:
         return -1, -1
 
     def find_all(self, data):
-        stats = np.zeros(500)
+        stats = np.zeros(200)
         for i in range(len(data)):
             pos, err = self.find(data[i])
             if pos == -1:
@@ -151,6 +165,7 @@ class RMI:
 
         if len(self.dataNode.data) > math.ceil(self.leafNodeSize * (0.8)):
             self.split_cnt += 1
+            self.retrain_cnt += 2
             self.dataNode.split_side()
 
     def bulk_load(self, data):
@@ -181,12 +196,24 @@ class LearnedIndexNode:
         self.is_leaf = is_leaf
         self.max_children = 8
         self.model = LinearRegression()
-
+        self.ooi_cnt = 0 #데이터 노드에서 모델 예측 시 out of index 횟수 측정
+        
     def train_model(self):
         if len(self.data) > 0:
             X = self.data.reshape(-1, 1)
             y = np.arange(len(self.data))
             self.model.fit(X, y)
+
+    def retrain(self):
+        if len(self.data) > 0:
+            sample_size = int(len(self.data) * 0.3)
+            sample_indices = np.random.choice(len(self.data), sample_size, replace=False)
+            sample_data = self.data[sample_indices]
+
+            X_sample = sample_data.reshape(-1, 1)
+            y_sample = np.arange(len(sample_data))
+            self.model.fit(X_sample, y_sample)
+
 
     def split(self, leafNodeSize):
         if len(self.data) <= math.ceil(leafNodeSize * (0.8)):
