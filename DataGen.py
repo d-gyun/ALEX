@@ -1,6 +1,7 @@
 import numpy as np
 import osmnx as ox
 from enum import Enum
+import os
 
 class Distribution(Enum):
     LINEAR = 0
@@ -31,7 +32,7 @@ class DataGen:
         elif self.distribution == Distribution.LONGLAT:
             self.data = self.generate_longlat()
         else:
-            print("I can't recognize the given distribution please give one of those(linear, normal, random, lognormal, longitudes, longlat)")
+            print("Unrecognized distribution type.")
             return None
         return self.data
 
@@ -83,15 +84,37 @@ class DataGen:
         graph = ox.graph_from_place(place_name, network_type='all')
         nodes, edges = ox.graph_to_gdfs(graph)
 
-        # 경도와 위도를 1차원 키로 변환
         longitudes = nodes['x'].values
         latitudes = nodes['y'].values
         longlat_data = 180 * np.floor(longitudes) + latitudes
 
-        # 데이터를 셔플하고 크기를 제한
         np.random.shuffle(longlat_data)
         longlat_data = longlat_data[:self.size]
 
         return np.sort(longlat_data)
 
+# 데이터셋 생성 및 저장 함수
+def generate_and_save_data():
+    sizes = [1000]  # 데이터 크기: 1M
+    distributions = [
+        Distribution.RANDOM,
+        Distribution.LOGNORMAL,
+        Distribution.LONGITUDES,
+        Distribution.LONGLAT
+    ]
 
+    output_dir = "datasets"
+    os.makedirs(output_dir, exist_ok=True)
+
+    for size in sizes:
+        for dist in distributions:
+            data_gen = DataGen(dist, size, size*100)
+            data = data_gen.generate()
+
+            # 파일명 생성 및 저장
+            file_name = f"{output_dir}/dataset_{dist.name}_{size}.csv"
+            np.savetxt(file_name, data, delimiter=",")
+            print(f"Saved: {file_name}")
+
+if __name__ == '__main__':
+    generate_and_save_data()

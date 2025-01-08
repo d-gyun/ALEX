@@ -120,6 +120,27 @@ def plot_bar(Alex_split_cnt, Alex_retrain_cnt, Flex_split_cnt, Flex_retrain_cnt)
     plt.tight_layout()
     plt.show()
 
+# 시간에 따른 split retrain 비교
+def plot_splits_retrains_over_time(alex_splits, alex_retrains, flex_splits, flex_retrains, time_steps):
+    plt.figure(figsize=(12, 6))
+
+    # Plot ALEX data
+    plt.plot(time_steps, alex_splits, label="ALEX Splits", color='blue', linestyle='--')
+    plt.plot(time_steps, alex_retrains, label="ALEX Retrains", color='cyan', linestyle='--')
+
+    # Plot FLEX data
+    plt.plot(time_steps, flex_splits, label="FLEX Splits", color='red', linestyle='-')
+    plt.plot(time_steps, flex_retrains, label="FLEX Retrains", color='orange', linestyle='-')
+
+    plt.title("Splits and Retrains Over Time", fontsize=18)
+    plt.xlabel("Time Steps", fontsize=15)
+    plt.ylabel("Cumulative Count", fontsize=15)
+    plt.legend(fontsize=12)
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+
 
 def plot_memory_usage(alex_memory, flex_memory):
     plt.figure(figsize=(10, 6))
